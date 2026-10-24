@@ -1,0 +1,8 @@
+condition,trades,win_pct_1to2,R_1to2
+no confluence required (structural filters only),219,52.1,0.486
+with 3m: big body on the last completed 3-min candle,103,61.2,0.76
+with 15m: price on the premium/discount side of the forming 15-min candle,107,50.5,0.436
+with 1h: price on the trade side of the 09:30 open (1-hour candle direction),94,54.3,0.551
+at least 1 of the 3,182,51.1,0.457
+at least 2 of the 3  <-- THE RULE,101,60.4,0.735
+all 3 of 3,21,66.7,0.92

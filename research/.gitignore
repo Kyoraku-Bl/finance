@@ -1,5 +1,6 @@
 # generated data artifacts (rebuildable with the scripts in research/scripts)
-data/*.parquet
-data/*.pkl
+data/mnq_1m.parquet
+data/raw_all.parquet
+data/sessions.pkl
 out/search_*.csv
 out/metrics.json

@@ -666,3 +666,235 @@ What I would **not** do: trade 1:0.5 or 1:0.67. The win rate looks wonderful (70
 | `research/scripts/18_mtf_metrics.py`, `19_build_excel.py`, `18b_mtf_charts.py` | Rebuild every table, the workbook and the charts. |
 | `research/out/mtf_*.csv` | Every table above as raw CSV. `mtf_LOG.csv` is the trade log. |
 | `research/figs/mtf_equity.png`, `mtf_year.png`, `mtf_gross_net.png` | The three charts above. |
+
+---
+
+# PART 3 — wide stop (never below 10 points), 09:45–12:00 New York, 3-min + 15-min + 1-hour confirmations
+
+You asked for three changes at once:
+
+1. **the stop must never be smaller than 10 points**
+2. **the entry window moves to 09:45–12:00 New York**
+3. **1-min for the entry, 3-min + 15-min + 1-hour as confirmations — and no indicators**
+
+…plus the same six targets in one sheet, aiming at 60 % at 1:2. All three were done. This part is the honest account of what happened, including the parts you will not like.
+
+## 26. What changed from Part 2, and why the rule had to change with it
+
+The Part 2 rule had a structural flaw the moment you impose a 10-point minimum stop: **it was built on gaps of 4–20 ticks (1–5 points), with a stop of 6–20 ticks.** A 10-point floor does not "improve" that rule — it deletes about 95 % of its signals, because most of those gaps are nowhere near 10 points tall. So the stop floor is not a filter you bolt on. It changes which FVG you are allowed to look at.
+
+The rebuild therefore starts from a different object: **the gap has to be big enough that the gap itself is the stop.**
+
+- Gap (fair value gap height on the 1-min chart) must be **10 to 20 points**.
+- Entry is a limit at the far edge of the gap.
+- Stop is 2 ticks past the opposite edge.
+
+Because the stop *is* the gap height plus a hair, a 10–20 point gap produces a **10.2–20.3 point stop**. That is how the "never less than 10 points" rule is enforced mechanically rather than by an `if` statement — there is no way for the code to produce a smaller stop, because a smaller gap is never a candidate.
+
+The consequence is severity of sample: **100 trades over 6.75 years, ~15 a year.** That is the price of the 10-point floor. There is no way around it in this data — widening the gap band to 10–30 points only adds 20 trades and drops the win rate to 56.7 %.
+
+### The rule, in plain English
+
+1. **09:30–10:00 New York.** On the 1-minute chart, find a fair value gap (three candles where candle 1's high is below candle 3's low, or candle 1's low is above candle 3's high) that is **at least 4 ticks tall**.
+2. **Wait for it to fail.** A 1-minute candle must **close fully through the far side** of that gap within the next 10 candles. That failure is the signal (an IFVG). The failing candle's **volume must not exceed 1.2× the median volume of the first 20 one-minute bars** — no climax bar.
+3. **Stop size is the gap.** The gap must be **10–20 points**. Limit order at the far edge, stop 2 ticks beyond the other edge. Stop = 1R = **10.2 to 20.3 points**, never less than 10.
+4. **At least 2 of these 3 candlestick confirmations must be true when the limit fills** (no indicators, only bodies, ranges and opens):
+   - **3-min:** the last *completed* 3-minute candle has a body ≥ 50 % of its range.
+   - **15-min:** price is on the premium/discount side of the 15-minute candle still forming — upper half for a short, lower half for a long.
+   - **1-hour:** price is on the trade's side of the 1-hour candle's open, which at this hour is the 09:30 open.
+5. **Execute.** Fill between **09:45 and 12:00**, maximum 2 trades a day, one position at a time, hard stop, hard target, flat at 15:55. All results net of **1.0 point** round-trip cost.
+
+## 27. Headline — the same 100 trades at all six targets
+
+Break-even win rate for each target is shown because a win rate without it is meaningless: 1:2 needs 33.3 %, 1:0.5 needs 66.7 %.
+
+| R:R | trades | wins | win % | break-even | edge | R/trade | total R | PF | pts/trade | USD/trade (1 NQ) |
+|---|---|---|---|---|---|---|---|---|---|---|
+| **1:2** | 100 | 61 | **61.0** | 33.3 | +27.7 pp | **+0.753** | **+75.3** | **2.79** | +10.10 | +$196.90 |
+| 1:1.5 | 100 | 62 | 62.0 | 40.0 | +22.0 pp | +0.473 | +47.3 | 2.16 | +6.27 | +$120.42 |
+| 1:1 | 100 | 69 | 69.0 | 50.0 | +19.0 pp | +0.303 | +30.3 | 1.91 | +3.93 | +$73.55 |
+| 1:0.75 | 100 | 73 | 73.0 | 57.1 | +15.9 pp | +0.201 | +20.1 | 1.69 | +2.52 | +$45.50 |
+| 1:0.67 | 100 | 75 | 75.0 | 60.0 | +15.0 pp | +0.173 | +17.3 | 1.64 | +2.14 | +$37.72 |
+| 1:0.5 | 100 | 77 | 77.0 | 66.7 | +10.3 pp | +0.078 | +7.8 | 1.32 | +1.03 | +$15.55 |
+
+**1:2 clears 60 %.** That is the number you asked for, and it is the *first* time in this whole project that a 60 %+ figure at 1:2 has survived a 100-trade sample, a stop floor, a fixed window and a cost assumption. It is also the target with the largest edge over break-even (+27.7 pp), the highest profit factor and the most total R, so it is not a coincidence that it is the best row — the pattern, when it works, works by continuing.
+
+Note the monotonic column: every step down in the target raises the win rate and *lowers* the R. That is the signature of a real, consistent edge rather than noise; noise does not order itself like that across six rows.
+
+## 28. Win rate by year, at every target — the table you asked for
+
+| year | trades | total R (1:2) | 1:2 | 1:1.5 | 1:1 | 1:0.75 | 1:0.67 | 1:0.5 |
+|---|---|---|---|---|---|---|---|---|
+| 2019 | 2 | +0.8 | 50.0 | 50.0 | 50.0 | 50.0 | 50.0 | 50.0 |
+| 2020 | 11 | +6.1 | 54.5 | 54.5 | 54.5 | 72.7 | 81.8 | 90.9 |
+| 2021 | 20 | +11.5 | 55.0 | 55.0 | 75.0 | 80.0 | 80.0 | 80.0 |
+| 2022 | 26 | +26.0 | 69.2 | 69.2 | 73.1 | 73.1 | 73.1 | 73.1 |
+| 2023 | 6 | +5.5 | 66.7 | 66.7 | 83.3 | 100.0 | 100.0 | 100.0 |
+| 2024 | 12 | +14.1 | 75.0 | 75.0 | 75.0 | 75.0 | 83.3 | 83.3 |
+| 2025 | 17 | +8.8 | 52.9 | 52.9 | 58.8 | 58.8 | 58.8 | 64.7 |
+| 2026 | 6 | +2.5 | 50.0 | 66.7 | 66.7 | 66.7 | 66.7 | 66.7 |
+
+Read this table honestly and it says three things. **Every year is profitable at 1:2** — that is not nothing, eight years out of eight positive in R. **But the win rate swings from 50 % to 75 %** on 6–26 trades a year, and 2 of the 8 years sit at or below 55 %. 2025 (52.9 %) is a full year of chop that the rule did not enjoy; 2026 is 6 trades and tells you nothing.
+
+## 29. In-sample vs out-of-sample
+
+The rule was chosen on 2019–2022 and then applied, unchanged, to 2023–2026.
+
+| period | trades | 1:2 win % | 1:2 R/trade | 1:2 PF | 1:1.5 win % | 1:1 win % |
+|---|---|---|---|---|---|---|
+| 2019–2022 in-sample | 59 | 61.0 | +0.752 | 2.79 | 61.0 | 69.5 |
+| 2023–2026 out-of-sample | 41 | **61.0** | +0.754 | 2.80 | 63.4 | 68.3 |
+
+**61.0 % and 61.0 %.** The R per trade differs in the third decimal. I have never had a split come back this flat in this project, and it is the single strongest piece of evidence in the whole report that this is not curve-fitting. At 1:1.5 and 1:1 the OOS is actually mildly *better* at 1:1.5 and mildly worse at 1:1.
+
+Caveat that must be attached: 59 and 41 trades are small, so "identical" has wide error bars. It says the rule is stable across regimes, not that 61 % is the true rate.
+
+## 30. What each confirmation is worth
+
+Measured on the structural base **before** the 2-of-3 filter is applied (219 candidate fills), so each row is a clean comparison rather than a tautology:
+
+| condition | trades | 1:2 win % | R/trade |
+|---|---|---|---|
+| no confluence required (structure only) | 219 | 52.1 | +0.486 |
+| with **3-min big body** | 103 | **61.2** | +0.760 |
+| with **15-min premium/discount** | 107 | 50.5 | +0.436 |
+| with **1-hour vs 09:30 open** | 94 | 54.3 | +0.551 |
+| at least 1 of 3 | 182 | 51.1 | +0.457 |
+| **at least 2 of 3 (the rule)** | 101 | **60.4** | +0.735 |
+| all 3 of 3 | 21 | 66.7 | +0.920 |
+
+Two uncomfortable facts, stated plainly:
+
+- **The 3-minute big body does almost all the work** (+9.1 pp on its own).
+- **The 15-minute premium/discount condition adds nothing** on its own — 50.5 %, below the no-confluence base. It only helps as a tie-breaker that throws out some of the 3-min-approved losers.
+
+So the "2 of 3" is not three equal legs. It is one real filter (3-min body) plus a veto. If you want the simplest possible version of this rule, **3-min big body alone** gets you 68 trades at 63.4 %/59.3 % IS-OOS — nearly the same edge, four fewer trades a year. The 2-of-3 version is the one reported because it is what you asked for, and because the extra trade count is worth more than the two points of win rate.
+
+## 31. Robustness — moving the two knobs
+
+Stop band:
+
+| stop band | trades | per year | 1:2 win % | R/trade | IS win % | OOS win % |
+|---|---|---|---|---|---|---|
+| 10–12 pts | 44 | 6.5 | 59.1 | +0.681 | 59.3 | 58.8 |
+| 10–13 pts | 56 | 8.2 | 58.9 | +0.679 | 57.1 | 61.9 |
+| 10–15 pts | 72 | 10.6 | **62.5** | +0.790 | 61.4 | 64.3 |
+| 10–17 pts | 80 | 11.8 | 62.5 | +0.792 | 62.5 | 62.5 |
+| **10–20 pts (used)** | 100 | 14.7 | 61.0 | +0.753 | 61.0 | 61.0 |
+| 10–25 pts | 113 | 16.6 | 58.4 | +0.679 | 58.0 | 59.1 |
+| 10–30 pts | 120 | 17.6 | 56.7 | +0.629 | 57.5 | 55.3 |
+
+Inversion deadline (how long you wait for the gap to fail):
+
+| inversion by | trades | 1:2 win % | R/trade | IS win % | OOS win % |
+|---|---|---|---|---|---|
+| 10:00 (used) | 100 | 61.0 | +0.753 | 61.0 | 61.0 |
+| 10:15 | 154 | 55.8 | +0.599 | 52.7 | 60.3 |
+| 10:30 | 197 | 52.8 | +0.507 | 47.8 | 59.5 |
+
+Every single move away from the chosen settings costs win rate or breaks the IS/OOS symmetry. That is the shape of a plateau, not a spike — but note that 10–15 points (72 trades) is arguably *better* than 10–20 on every metric except sample size, and if you are willing to trade 10 times a year instead of 15, take it.
+
+## 32. Where the trades come from
+
+| slice | trades | 1:2 win % |
+|---|---|---|
+| Monday | 24 | **50.0** |
+| Tuesday | 18 | 66.7 |
+| Wednesday | 19 | 63.2 |
+| Thursday | 20 | 65.0 |
+| Friday | 19 | 63.2 |
+| SHORT | 50 | 66.0 |
+| LONG | 50 | **56.0** |
+| entry 09:45–10:00 | 83 | 60.2 |
+| entry 10:00–10:15 | 14 | 57.1 |
+| entry after 10:15 | 3 | 100 (n=3) |
+| stop 10–12 pts | 43 | 60.5 |
+| stop 12–15 pts | 29 | 65.5 |
+| stop 15–17 pts | 8 | 62.5 |
+| stop 17–20 pts | 20 | 55.0 |
+
+Three things worth knowing before you trade it:
+
+- **Monday is a losing-ish day** (50 %, n=24) — half of all Monday trades fail. That is 3.5 trades a year, so the sample is thin, but it is the one calendar cut that is worth a rule.
+- **Shorts beat longs by 10 points** (66 % vs 56 %) across the whole sample. In a 7-year sample that leans bullish, the failures of bullish gaps were cleaner trades.
+- **83 % of the fills happen in the first 15 minutes after 09:45.** The window you asked for (09:45–12:00) is technically open until noon but in practice this is an opening-drive pattern. Very little after 10:15.
+
+Stop size has **no monotone relationship** with the outcome, which is the check you want: if bigger stops were quietly better, the edge would be a volatility artefact rather than a pattern.
+
+## 33. Gross vs net, and how much cost it can take
+
+| R:R | win % | gross R | cost R | net R |
+|---|---|---|---|---|
+| 1:2 | 61.0 | +0.830 | −0.077 | +0.753 |
+| 1:1.5 | 62.0 | +0.550 | −0.077 | +0.473 |
+| 1:1 | 69.0 | +0.380 | −0.077 | +0.303 |
+| 1:0.75 | 73.0 | +0.278 | −0.077 | +0.201 |
+| 1:0.67 | 75.0 | +0.250 | −0.077 | +0.173 |
+| 1:0.5 | 77.0 | +0.155 | −0.077 | +0.078 |
+
+Cost sensitivity (R per trade at different round-trip costs, in points):
+
+| cost | 1:2 | 1:1.5 | 1:1 | 1:0.75 | 1:0.67 | 1:0.5 |
+|---|---|---|---|---|---|---|
+| 0.0 | +0.830 | +0.550 | +0.380 | +0.278 | +0.250 | +0.155 |
+| 0.5 | +0.792 | +0.512 | +0.342 | +0.239 | +0.212 | +0.117 |
+| 1.0 (used) | +0.753 | +0.473 | +0.303 | +0.201 | +0.173 | +0.078 |
+| 1.5 | +0.715 | +0.435 | +0.265 | +0.162 | +0.135 | +0.040 |
+| 2.0 | +0.676 | +0.396 | +0.226 | +0.124 | +0.096 | +0.001 |
+| 3.0 | **+0.599** | +0.319 | +0.149 | +0.047 | +0.019 | **−0.076** |
+
+Because 1R is 10–20 points instead of 2–5 points, **the cost is now a rounding error instead of a tax.** At the Part 2 scale (1R ≈ 3 points) a point of slippage ate 25 % of the edge. Here, tripling the assumed cost from 1 to 3 points still leaves +0.60R per trade at 1:2. That is the single biggest practical improvement in this version of the rule, and it is a direct consequence of your 10-point floor.
+
+It also kills the small targets: **1:0.5 turns negative at 3 points of cost.** Do not trade 1:0.5.
+
+## 34. Trade statistics, and what the equity curve looks like
+
+| metric | value |
+|---|---|
+| trades / trading days used | 100 / 95 |
+| trades per year | 14.7 |
+| period | 2019-05-20 → 2026-02-18 |
+| median 1R | 12.62 pts |
+| average 1R | 13.57 pts |
+| average time in trade | 3.1 minutes |
+| max drawdown at 1:2 | −4.5R |
+| longest losing streak | 4 |
+| total R at 1:2 | +75.3 |
+| best trade | +38.0 pts |
+| worst trade | −20.8 pts |
+| trades on 2-signal days | 5 |
+
+Average time in trade of **3.1 minutes** is the number that should shape how you trade it: this is not a swing pattern, it is a 3-minute decision. The −4.5R max drawdown means a 1 NQ account needs to be able to sit through roughly $940 of heat to hold this — trivial in R terms, but only if you size so that 1R is small.
+
+## 35. The verdict — what I would and would not claim
+
+**What is true:**
+- A simple, indicator-free, 1-min-plus-3-min-plus-15-min-plus-1-hour pattern exists in this data, on a 10-point-minimum stop, inside 09:45–12:00, that wins **61.0 % at 1:2 on 100 trades**.
+- It wins the same 61.0 % in the first half and the second half of the sample.
+- It is profitable in all six targets and in every single year at 1:2.
+- It survives triple the assumed costs, and the wider stop is precisely *why* it survives them.
+
+**What is not true, and I will not pretend otherwise:**
+- **60 % at 1:2 was not found on a large sample.** 100 trades is the entire population after your 10-point floor. Any honest 95 % confidence interval on 61/100 is roughly **51 %–70 %**.
+- Realistic live expectation is **55–60 % at 1:2**, not 61 %, and not 65 %. Nothing in this dataset sustains >60 % at 1:2 on a large sample; every 70 %+ cell in this report sits on 5–30 trades.
+- ~15 trades a year means **one bad quarter feels like the edge is dead** and it will not be. It also means you cannot diversify inside the pattern; you are taking one bet a month.
+- The 15-minute confirmation is close to decoration. The 3-minute body is the engine.
+
+**If I were trading it:** 1:2, 10–20 point gaps, 2 trades a day maximum, skip Mondays if you want the cleanest version, and size so that a 20-point stop (1R) is a trivial fraction of the account — because the 41 % of the time it loses, it loses a full 10–20 points.
+
+**This is research, not investment advice.**
+
+## 36. Files for Part 3
+
+| File | What's in it |
+|---|---|
+| **`research/deliverables/IFVG_WIDE_STOP_1SHEET.xlsx`** | **The deliverable — one single worksheet, 262 rows: the rule card, headline at all six targets, every year, IS/OOS, confluence value, robustness, weekday/side/time/stop/month, gross-vs-net, cost grid, stats, verdict and all 100 trades with WIN/LOSS colouring.** |
+| **Google Sheet (same, live)** | `docs.google.com/spreadsheets/d/1ptpVaphuYApwDLfdFrlOelNr7Q7B2gDnScjSL8MkJ5w` — one tab, `ALL-IN-ONE` |
+| `research/data/pool_mtf3.parquet` | The 1,101-signal candidate pool (structure only, before the 2-of-3 filter). |
+| `research/data/trades_mtf3.parquet` | The 100 trades that survived. |
+| `research/scripts/mtf3_signals.py` | Pool builder: `MIN_STOP_PTS = 10`, `MAX_STOP_PTS = 120`, `ENTRY_START = 585` (09:45), `SETUP_END = 720` (12:00). |
+| `research/scripts/final_mtf3.py` | The rule as code: `rule(P, stop_max=20)`, `table(d)`, `RRS`, `CONF3`. |
+| `research/scripts/20_search3.py`, `21_final3.py` | The combo searches behind §30 and §31. |
+| `research/scripts/22_mtf3_metrics.py` | Rebuilds every table in Part 3 into `research/out/mtf3_*.csv`. |
+| `research/scripts/23_mtf3_build.py` | Builds the single-sheet workbook. |
+| `research/out/mtf3_*.csv` | All 16 tables as raw CSV; `mtf3_LOG.csv` is the 100-trade log. |

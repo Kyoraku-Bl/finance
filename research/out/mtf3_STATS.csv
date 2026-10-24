@@ -1,0 +1,14 @@
+metric,value
+trades,100
+trading days used,95
+trades per year,14.7
+period,2019-05-20 to 2026-02-18
+"median stop (1R, points)",12.62
+"average stop (1R, points)",13.57
+average time in trade (minutes),3.1
+"max drawdown (R, at 1:2)",-4.5
+longest losing streak (at 1:2),4
+total R at 1:2,75.3
+largest win (points),38.0
+largest loss (points),-20.8
+trades taken on 2-signal days,5

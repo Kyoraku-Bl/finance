@@ -1,7 +1,7 @@
 import glob, os, re
 import pandas as pd, numpy as np
 
-SRC = "/tmp/mnqtest/plaintext_csv"
+SRC = "/tmp/mnq/plaintext_csv"
 files = sorted(glob.glob(os.path.join(SRC, "*", "*.Last.csv")))
 rows = []
 for f in files:

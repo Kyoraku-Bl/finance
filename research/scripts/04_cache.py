@@ -4,26 +4,40 @@ sys.path.insert(0,"research/scripts"); from lib import *
 
 df = load().sort_values("ts").reset_index(drop=True)
 
-# ---- session dates = dates that contain a 09:30 bar ----
-op = df[df["mod"]==WIN_START].ts.dt.normalize().drop_duplicates().to_numpy()
-op = np.sort(op)
-ix = np.searchsorted(op, df.ts.to_numpy(), side="left")   # first 09:30 at/after the bar
-df["sess"] = pd.Series(op[np.clip(ix,0,len(op)-1)], index=df.index)
-df.loc[ix>=len(op),"sess"] = pd.NaT                     # bars after the last session
+# ---- session dates ----
+# A session is labelled with the calendar date of its 09:30 bar.
+#   bars 09:30-15:55        -> that day
+#   bars 18:00-23:59        -> the NEXT day's session (overnight before it)
+#   bars 00:00-09:29        -> that same day's session (pre-market)
+op = np.sort(df[df["mod"] == WIN_START].ts.dt.normalize().drop_duplicates().to_numpy())
+day = df.ts.dt.normalize()
+mod = df["mod"].to_numpy()
+# index of the first 09:30 at/after each bar's calendar day
+ix = np.searchsorted(op, day.to_numpy(), side="left")
+next_op = op[np.clip(ix, 0, len(op)-1)]
+next_op = pd.Series(next_op, index=df.index)
+sess = day.copy()
+late = (mod >= 18*60)                     # evening -> next session
+early = (mod < WIN_START)                 # pre-market -> same day's session
+sess[early] = day[early]
+sess[late] = next_op[late]
+df["sess"] = pd.Series(np.where(ix >= len(op), pd.NaT, sess), index=df.index)
 
 # ---- reference levels known before 09:30 of the session date ----
 def agg(g):
     return pd.Series(dict(hi=g.high.max(), lo=g.low.min(), cl=g.close.iloc[-1], n=len(g)))
 rows=[]
-for sess, g in df[df["sess"].notna()].groupby("sess", sort=True):
+for sess_d, g in df[df["sess"].notna()].groupby("sess", sort=True):
     m=g["mod"].to_numpy(); h=g.high.to_numpy(); l=g.low.to_numpy()
-    on  = m>=18*60
-    pre = (m<WIN_START) | on
+    on  = m>=18*60                       # 18:00-23:59 the evening BEFORE (same label day? no)
+    pre = m<WIN_START
     pm  = (m<WIN_START) & (m>=8*60)
-    r=dict(date=sess)
-    if on.any(): r["on_h"],r["on_l"]=h[on].max(),l[on].min()
-    if pm.any(): r["pm_h"],r["pm_l"]=h[pm].max(),l[pm].min()
-    if pre.any(): r["pre_h"],r["pre_l"]=h[pre].max(),l[pre].min()
+    r=dict(date=sess_d)
+    if pre.any(): r["on_h"],r["on_l"]=h[pre].max(),l[pre].min()
+    if pm.any():  r["pm_h"],r["pm_l"]=h[pm].max(),l[pm].min()
+    if pre.any() or on.any():
+        hh = np.concatenate([h[pre], h[on]]); ll = np.concatenate([l[pre], l[on]])
+        r["pre_h"],r["pre_l"]=hh.max(),ll.min()
     rows.append(r)
 LV=pd.DataFrame(rows)
 
