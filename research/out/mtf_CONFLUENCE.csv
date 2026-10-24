@@ -1,0 +1,8 @@
+confluence,signals,win_pct_1to2,R_1to2,win_pct_1to1
+(none - premium filter only),365,55.3,0.527,64.7
+3-min body,180,60.6,0.682,71.1
+3-min struct,109,56.9,0.58,66.1
+3-min close_ok,179,53.6,0.479,65.4
+3-min engulf,94,55.3,0.539,63.8
+3-min dir,168,54.8,0.514,65.5
+>=2 of the four (THE RULE),165,55.8,0.546,66.1
